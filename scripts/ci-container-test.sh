@@ -72,12 +72,15 @@ if pkg_exists bash; then
   for p in $(/usr/local/bin/languard dnsguide --packages); do
     check "package $p exists" pkg_exists "$p"
   done
+  have=""
   for p in dnscrypt-proxy stubby getdns-stubby unbound systemd-resolved systemd-network; do
-    pkg_exists "$p" && echo "INFO: package $p available" || echo "INFO: no package $p"
+    pkg_exists "$p" && have="$have $p"
   done
   if command -v dnf >/dev/null; then
-    echo "INFO: stubby provided by: $(dnf -q repoquery --whatprovides '*/bin/stubby' 2>/dev/null | tr '\n' ' ')"
+    have="$have | stubby from: $(dnf -q repoquery --whatprovides '*/bin/stubby' 2>/dev/null | tr '\n' ' ')"
+    have="$have | dnscrypt from: $(dnf -q repoquery --whatprovides '*/dnscrypt-proxy' 2>/dev/null | tr '\n' ' ')"
   fi
+  echo "::notice title=dns packages ${ID:-} ${VERSION_ID:-}::$have"
 else
   echo "-------- SKIP: DNS guide packages (no package index, offline)"
 fi
