@@ -61,11 +61,25 @@ desktop app (offscreen), the whole test suite (13 files) and
 | Ubuntu 20.04, 22.04, 24.04 | distribution packages (apt) | all checks passed, desktop app included |
 | Ubuntu 20.04, 22.04, 24.04 | `install.sh --pip` (scapy and PyQt5 from PyPI) | all checks passed, desktop app included |
 | Arch Linux | offline Python 3.12 + wheels | all checks passed |
-| Debian 12, 13, Fedora 42, AlmaLinux 9, openSUSE Leap 15.6, Tumbleweed | offline Python 3.12 + wheels | install, CLI, test suite and uninstall passed. The selftest correctly reported that nftables was missing (it can't be installed offline) and printed the right install command. Desktop app not tested (no Qt offline) |
 | Ubuntu 24.04 with systemd + ClamAV | apt, `--enable` | EICAR test file quarantined in real time, the full scan found it, the guard restarted a stopped ClamAV, uninstall left nothing behind |
 
-The GitHub Actions workflow ([`tests.yml`](.github/workflows/tests.yml)) repeats
-these with real package installs on 11 distribution images on every push.
+The GitHub Actions workflow ([`tests.yml`](.github/workflows/tests.yml)) runs
+the same script with real package installs on every push. All of these jobs pass:
+
+| Distribution (GitHub Actions) | Dependencies from | Result |
+|---|---|---|
+| Ubuntu 20.04, 22.04, 24.04 | apt | passed |
+| Debian 12, 13 | apt | passed |
+| Fedora 41, 42 | dnf | passed |
+| AlmaLinux 9 | dnf + EPEL | passed |
+| openSUSE Leap 15.6, Tumbleweed | zypper | passed |
+| Arch Linux | pacman | passed |
+| Ubuntu 24.04, Debian 12, Fedora 42 | `install.sh --pip` | passed |
+| Developer venv, Python 3.8, 3.10, 3.12, 3.13 | `requirements-dev.txt` | passed |
+
+The picture below is from the earlier offline sandbox run, where the
+non-Ubuntu images had no package mirrors: there the selftest correctly
+reported that nftables was missing. With real mirrors (above) they pass.
 
 ![Test matrix](docs/screenshots/test-matrix.png)
 
