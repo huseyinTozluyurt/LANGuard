@@ -170,7 +170,7 @@ and the commands to undo it. Nothing is run for you.
 |---|---|---|
 | DNS over TLS with systemd-resolved | DoT, port 853 | Ubuntu, Fedora: nothing extra to install, one config file |
 | dnscrypt-proxy | DNSCrypt / DNS over HTTPS, port 443 | networks that block port 853; DNSSEC and no-log server filters. LANGuard watches it most closely |
-| Stubby | DoT, port 853 | a small separate resolver (openSUSE, Arch) |
+| Stubby | DoT, port 853 | a small separate resolver (Arch, Debian; not packaged for openSUSE) |
 | Unbound | DoT forwarder with local DNSSEC validation | people who want a validating, caching resolver |
 | DNS over HTTPS in the browser | DoH, port 443 | the browser only, no terminal |
 

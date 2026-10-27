@@ -85,8 +85,17 @@ def cmds(o):
 check("Ubuntu/Debian: apt install dnscrypt-proxy, listens on 127.0.2.1",
       "sudo apt install dnscrypt-proxy" in cmds(opt("debian", "dnscrypt-proxy"))
       and "DNS=127.0.2.1" in cmds(opt("debian", "dnscrypt-proxy")))
-check("Fedora: Stubby is getdns-stubby", "sudo dnf install getdns-stubby" in
-      cmds(opt("fedora", "stubby")))
+check("Fedora: dnf install stubby", "sudo dnf install stubby" in cmds(opt("fedora", "stubby")))
+suse_stubby = opt("suse", "stubby")
+check("openSUSE has no Stubby package: no install command, says so",
+      not suse_stubby["available"] and "isn't packaged" in suse_stubby["steps"][0][0]
+      and not suse_stubby["steps"][0][1])
+deb12 = {"ID": "debian", "VERSION_ID": "12", "PRETTY_NAME": "Debian GNU/Linux 12"}
+d12 = next(o for o in dnsguide.options("debian", False, deb12) if o["key"] == "dnscrypt-proxy")
+check("Debian 12 dropped dnscrypt-proxy; Debian 13 and Ubuntu have it",
+      not d12["available"] and "Debian GNU/Linux 12" in d12["steps"][0][0]
+      and dnsguide.available("dnscrypt-proxy", "debian", {"ID": "debian", "VERSION_ID": "13"})
+      and dnsguide.available("dnscrypt-proxy", "debian", {"ID": "ubuntu", "VERSION_ID": "20.04"}))
 check("openSUSE: zypper; Arch: pacman", "sudo zypper install unbound" in
       cmds(opt("suse", "unbound")) and "sudo pacman -S stubby" in cmds(opt("arch", "stubby")))
 check("Unbound uses each family's CA bundle",
@@ -102,10 +111,22 @@ check("the undo removes what the steps added",
       "rm /etc/systemd/resolved.conf.d/dns-over-tls.conf" in opt("debian", "resolved-dot")["undo"]
       and "ignore-auto-dns no" in opt("debian", "dnscrypt-proxy")["undo"])
 check("package list for the CI check",
-      dnsguide.packages("fedora") == ["dnscrypt-proxy", "getdns-stubby", "unbound"])
+      dnsguide.packages("fedora") == ["dnscrypt-proxy", "stubby", "unbound"]
+      and dnsguide.packages("suse") == ["dnscrypt-proxy", "unbound"]
+      and dnsguide.packages("debian", deb12) == ["stubby", "unbound"])
 blk = dnsguide.commands_text(opt("debian", "stubby"))
 check("copy block: explanations and undo are comments",
       blk.startswith("# Step 1:") and "#   " in blk.split("# Undo:")[1])
+
+real_info, real_rel = distro.info, distro.os_release
+distro.info = lambda: ("debian", "Debian GNU/Linux 12")
+distro.os_release = lambda path=None: deb12
+try:
+    g12 = dnsguide.guide(info={}, dot=None, resolved=False)
+finally:
+    distro.info, distro.os_release = real_info, real_rel
+check("Debian 12 without resolved: recommends Stubby instead of dnscrypt-proxy",
+      g12["current"]["recommend"] == "stubby")
 
 print("== Only shows, never runs")
 calls = []
@@ -135,7 +156,7 @@ check("--distro arch --option stubby", r.returncode == 0 and "sudo pacman -S stu
       and "dnscrypt-proxy  [" not in r.stdout)
 r = subprocess.run([sys.executable, str(ROOT / "languard.py"), "dnsguide", "--packages",
                     "--distro", "fedora"], capture_output=True, text=True)
-check("--packages", r.stdout.split() == ["dnscrypt-proxy", "getdns-stubby", "unbound"])
+check("--packages", r.stdout.split() == ["dnscrypt-proxy", "stubby", "unbound"])
 
 print(f"\n{'ALL PASSED' if not fails else f'{fails} FAILED'}")
 sys.exit(fails)

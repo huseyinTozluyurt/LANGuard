@@ -26,16 +26,19 @@ PROVIDERS = (
     ("Cloudflare", ("1.1.1.1", "1.0.0.1"), "cloudflare-dns.com"),
 )
 
-# Logical package -> name per family. Checked against the real repositories
-# by scripts/ci-container-test.sh.
+# Logical package -> name per family (None: not packaged there). Checked
+# against the real repositories by scripts/ci-container-test.sh.
 PACKAGES = {
     "dnscrypt-proxy": {"debian": "dnscrypt-proxy", "fedora": "dnscrypt-proxy",
                        "suse": "dnscrypt-proxy", "arch": "dnscrypt-proxy"},
-    "stubby": {"debian": "stubby", "fedora": "getdns-stubby", "suse": "stubby",
+    "stubby": {"debian": "stubby", "fedora": "stubby", "suse": None,
                "arch": "stubby"},
     "unbound": {"debian": "unbound", "fedora": "unbound", "suse": "unbound",
                 "arch": "unbound"},
 }
+# Releases that dropped a package the rest of their family has:
+# (os-release ID, VERSION_ID) -> packages.
+NOT_PACKAGED = {("debian", "12"): {"dnscrypt-proxy"}}
 CA_BUNDLE = {"debian": "/etc/ssl/certs/ca-certificates.crt",
              "fedora": "/etc/pki/tls/certs/ca-bundle.crt",
              "suse": "/etc/ssl/ca-bundle.pem",
@@ -82,6 +85,15 @@ def uses_resolved(resolv="/etc/resolv.conf"):
     return "127.0.0.53" in localdns.resolv_conf(resolv)
 
 
+def available(key, fam, rel=None):
+    """Whether the guide can tell you to install `key` on this system."""
+    rel = rel or {}
+    if key not in PACKAGES:
+        return True
+    return bool(PACKAGES[key].get(fam)) and key not in NOT_PACKAGED.get(
+        (rel.get("ID"), rel.get("VERSION_ID")), ())
+
+
 def current(info=None, dot=None, resolved=None):
     """What runs now and what to do, from the read-only checks."""
     info = info if info is not None else localdns.inspect()
@@ -118,7 +130,10 @@ def current(info=None, dot=None, resolved=None):
 # ---------------------------------------------------------------- options --
 def _install(key, fam):
     name = PACKAGES[key].get(fam) or PACKAGES[key]["debian"]
-    return f"{distro.INSTALL_CMD.get(fam, distro.INSTALL_CMD['debian'])} {name}"
+    cmd = f"{distro.INSTALL_CMD.get(fam, distro.INSTALL_CMD['debian'])} {name}"
+    if fam == "fedora" and key != "unbound":
+        cmd += "   # RHEL/AlmaLinux/Rocky: from EPEL (sudo dnf install epel-release)"
+    return cmd
 
 
 def _point_system_dns(addr, resolved, fname):
@@ -157,8 +172,9 @@ IGNORE_DHCP_DNS = (
 VERIFY = ("Check it with LANGuard", "languard dnscheck")
 
 
-def options(fam=None, resolved=None):
-    """Every option with its steps for this distribution, as dicts."""
+def options(fam=None, resolved=None, rel=None):
+    """Every option with its steps for this distribution, as dicts. `rel`
+    (os-release) marks packages a release doesn't have."""
     fam = fam or distro.info()[0]
     fam = fam if fam in distro.FAMILIES else "debian"
     resolved = uses_resolved() if resolved is None else resolved
@@ -175,8 +191,8 @@ def options(fam=None, resolved=None):
                      "/etc/resolv.conf"))
     elif fam == "suse":
         prep.append(("openSUSE manages DNS with netconfig, not systemd-resolved: "
-                     "prefer dnscrypt-proxy or Stubby here. To switch anyway",
-                     "sudo zypper install systemd-resolved   # Leap: systemd-network\n"
+                     "prefer dnscrypt-proxy or Unbound here. To switch anyway",
+                     "sudo zypper install systemd-resolved\n"
                      "sudo systemctl enable --now systemd-resolved\n"
                      "sudo ln -sf ../run/systemd/resolve/stub-resolv.conf "
                      "/etc/resolv.conf"))
@@ -247,8 +263,8 @@ def options(fam=None, resolved=None):
         "key": "stubby", "title": "Stubby",
         "protocol": "DNS over TLS (port 853)",
         "summary": "A small local DNS-over-TLS resolver from the getdns "
-                   "project, for systems without systemd-resolved (openSUSE, "
-                   "Arch) or if you prefer a separate program.",
+                   "project, for systems without systemd-resolved (Arch, Debian) "
+                   "or if you prefer a separate program.",
         "pros": "small; strict TLS authentication by default",
         "cons": "port 853 can be blocked; listens on 127.0.0.1:53, so don't "
                 "run it next to dnscrypt-proxy or Unbound",
@@ -317,6 +333,14 @@ def options(fam=None, resolved=None):
              "https://1.1.1.1/help", "")],
         "undo": "switch the same setting back off",
     })
+    for o in out:
+        o["available"] = available(o["key"], fam, rel)
+        if not o["available"]:
+            where = (rel or {}).get("PRETTY_NAME") or FAMILY_NAMES.get(fam, fam)
+            o["steps"] = [(f"{o['title']} isn't packaged for {where}. Pick another "
+                           f"option (or install it from the project's own "
+                           f"releases at your own risk)", "")]
+            o["undo"] = "nothing to undo"
     return out
 
 
@@ -339,13 +363,18 @@ def guide(fam=None, info=None, dot=None, resolved=None):
     """Everything the CLI and the app show."""
     here, name = distro.info()
     fam = fam or here
+    rel = distro.os_release() if fam == here else {}
     if fam != here:
         name = FAMILY_NAMES.get(fam, fam)
     resolved = uses_resolved() if resolved is None else resolved
-    return {"distribution": name, "family": fam,
-            "uses_resolved": resolved,
-            "current": current(info, dot, resolved),
-            "options": options(fam, resolved), "notes": list(NOTES)}
+    cur = current(info, dot, resolved)
+    opts = options(fam, resolved, rel)
+    ok = {o["key"] for o in opts if o["available"]}
+    if cur.get("recommend") and cur["recommend"] not in ok:
+        cur["recommend"] = next(k for k in ("dnscrypt-proxy", "stubby", "unbound",
+                                            "browser-doh") if k in ok)
+    return {"distribution": name, "family": fam, "uses_resolved": resolved,
+            "current": cur, "options": opts, "notes": list(NOTES)}
 
 
 def option_text(o, number=None, recommended=False):
@@ -393,9 +422,9 @@ def text(g, only=None):
     return "\n".join(out)
 
 
-def packages(fam):
-    """Package names the guide installs on this family (for the CI check)."""
-    return sorted({v.get(fam) for v in PACKAGES.values() if v.get(fam)})
+def packages(fam, rel=None):
+    """Package names the guide installs here (for the CI check)."""
+    return sorted(v[fam] for k, v in PACKAGES.items() if available(k, fam, rel))
 
 
 def main(args):
@@ -404,6 +433,8 @@ def main(args):
     if args.json:
         print(json.dumps(g, indent=2, ensure_ascii=False))
     elif args.packages:
-        print(" ".join(packages(g["family"])))
+        here = distro.info()[0]
+        print(" ".join(packages(g["family"], distro.os_release()
+                                if g["family"] == here else None)))
     else:
         print(text(g, args.option))

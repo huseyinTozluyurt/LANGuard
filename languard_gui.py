@@ -1261,7 +1261,9 @@ class MainWindow(QMainWindow):
         for o in g["options"]:
             rec = o["key"] == cur.get("recommend")
             self.guide_pick.addItem(f"{o['title']}  ({o['protocol']})"
-                                    + ("  - recommended" if rec else ""), o["key"])
+                                    + ("  - recommended" if rec else "")
+                                    + ("" if o.get("available", True) else
+                                       "  - not packaged here"), o["key"])
         keys = [o["key"] for o in g["options"]]
         want = keep if keep in keys else (cur.get("recommend") or keys[0])
         self.guide_pick.setCurrentIndex(keys.index(want))
