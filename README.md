@@ -45,15 +45,15 @@ container, fed with simulated attacks by the test suite (so addresses such as
 | ![Protection](docs/screenshots/3-protection.png) | ![Blocks and pins](docs/screenshots/4-blocks.png) |
 | **Network** | **Encrypted DNS (read-only)** |
 | ![Network](docs/screenshots/5-network.png) | ![Encrypted DNS](docs/screenshots/6-dns.png) |
-| **Tools** | |
-| ![Tools](docs/screenshots/7-tools.png) | |
+| **Tools** | **Encrypted DNS setup guide** |
+| ![Tools](docs/screenshots/7-tools.png) | ![DNS setup guide](docs/screenshots/8-dns-guide.png) |
 
 ## Tested on
 
 Every distribution below was tested in a throwaway container with
 `scripts/ci-container-test.sh`, which runs `install.sh --dry-run`, a real
 install, the CLI (`--version`, `config`, `status`, `audit`, `selftest`), the
-desktop app (offscreen), the whole test suite (13 files) and
+desktop app (offscreen), the whole test suite (14 files) and
 `uninstall.sh --purge`.
 
 | Distribution | Dependencies from | Result |
@@ -157,6 +157,53 @@ set DNS up; LANGuard checks that it holds on hostile networks:
   broadcast that Responder poisons), is turned off on the interface at
   runtime. `"protect": {"flush_dns": false, "llmnr_off": false}` turns either
   off.
+
+## Setting up encrypted DNS yourself (`languard dnsguide`)
+
+LANGuard doesn't encrypt your DNS for you (it never changes DNS settings), but
+it shows you how, with the commands for your distribution. Run
+`languard dnsguide`, or open **Encrypted DNS** in the app. It shows what your
+DNS does now, recommends an option, and lists each step with **Copy commands**
+and the commands to undo it. Nothing is run for you.
+
+| Option | Protocol | Good for |
+|---|---|---|
+| DNS over TLS with systemd-resolved | DoT, port 853 | Ubuntu, Fedora: nothing extra to install, one config file |
+| dnscrypt-proxy | DNSCrypt / DNS over HTTPS, port 443 | networks that block port 853; DNSSEC and no-log server filters. LANGuard watches it most closely |
+| Stubby | DoT, port 853 | a small separate resolver (Arch, Debian; not packaged for openSUSE) |
+| Unbound | DoT forwarder with local DNSSEC validation | people who want a validating, caching resolver |
+| DNS over HTTPS in the browser | DoH, port 443 | the browser only, no terminal |
+
+```bash
+languard dnsguide                          # what runs now, and every option
+languard dnsguide --option resolved-dot    # one option: resolved-dot, dnscrypt-proxy,
+                                           #   stubby, unbound, browser-doh
+languard dnsguide --distro fedora          # commands for another distribution
+```
+
+For example, DNS over TLS with systemd-resolved on Ubuntu or Fedora:
+
+```bash
+sudo mkdir -p /etc/systemd/resolved.conf.d
+sudo tee /etc/systemd/resolved.conf.d/dns-over-tls.conf <<'EOF'
+[Resolve]
+DNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com
+DNSOverTLS=yes
+Domains=~.
+FallbackDNS=
+EOF
+sudo systemctl restart systemd-resolved
+# stop the Wi-Fi connection from adding the network's plain DNS servers:
+nmcli connection modify "<connection>" ipv4.ignore-auto-dns yes ipv6.ignore-auto-dns yes
+nmcli connection up "<connection>"
+languard dnscheck                          # check it
+```
+
+Pick one option: dnscrypt-proxy, Stubby and Unbound each answer on this
+computer, so running two at once breaks DNS. Afterwards LANGuard checks that
+every lookup goes through the encrypted resolver and warns when it leaks,
+stops or is blocked (see above). The providers in the examples (Quad9,
+Cloudflare) can be swapped for any you trust.
 
 ## SSL stripping and captive portals
 
@@ -365,7 +412,9 @@ prevention console you run as your normal user. A sidebar leads to:
 - **Network**: this connection and whether the router is verified, **Home** /
   **Public** / **Not marked**, and pinned devices (add with an optional MAC,
   remove)
-- **Encrypted DNS**: your dnscrypt-proxy (or other local resolver), where it
+- **Encrypted DNS**: a setup guide with terminal commands for dnscrypt-proxy,
+  DNS over TLS, Stubby, Unbound and browser DoH (copy, never run), and your
+  dnscrypt-proxy (or other local resolver), where it
   listens, what system DNS goes to, leaks, a live resolver test and the full
   `dnscheck`. Read-only: the app never changes DNS either
 - **Tools**: self-test, security audit (results table; fixes only with your
@@ -478,6 +527,7 @@ languard status                    # health, quarantine count, latest alerts
 journalctl -u languard -f          # live alerts
 sudo languard audit [--fix]        # hardening check; --fix asks before LLMNR/mDNS off and Samba signing
 languard dnscheck                  # is every lookup going through dnscrypt-proxy?
+languard dnsguide                  # how to set up encrypted DNS (commands, never run)
 sudo languard selftest             # simulated attacks, nothing changed
 sudo languard evidence             # pcaps saved on critical alerts
 sudo languard hsts --update        # refresh the HSTS preload list
@@ -555,6 +605,7 @@ python3 tests/test_v17.py            # evil twin, tamper protection, sensor, DHC
                                      # safer responses, mDNS, plain-HTTP passwords, packet fuzz
 python3 tests/test_gui.py            # desktop app data layer + window (needs PyQt5)
 python3 tests/test_distro.py         # distribution detection, package names, ClamAV lookup
+python3 tests/test_dnsguide.py       # encrypted-DNS guide: options per distro, read-only
 tests/run_all.sh                     # all of the above, with a summary
 ```
 

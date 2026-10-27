@@ -5,8 +5,9 @@ LANGuard desktop app (PyQt5).
 An intrusion prevention console for LANGuard: protection status, the threats
 it detects and the actions it takes, every response switch, active blocks
 with undo, network trust (home / public) and pinned devices, your encrypted
-DNS resolver (shown, never changed), and tools: self-test, security audit,
-evidence captures and the HSTS preload list.
+DNS resolver (shown, never changed) with a guide to set one up yourself,
+and tools: self-test, security audit, evidence captures and the HSTS
+preload list.
 
 Run it as your normal user: it reads the service's live status
 (/run/languard/status.json) and alert log, and asks for your password through
@@ -1214,8 +1215,81 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.dns_leak)
         self.dns_advice = label("", "code", wrap=True, select=True)
         lay.addWidget(self.dns_advice)
+
+        lay.addWidget(self._section("Set up encrypted DNS yourself"))
+        lay.addWidget(label("Recommendations with the terminal commands for this "
+                            "distribution. LANGuard only shows them: you run them, and "
+                            "every option lists how to undo it.", wrap=True, muted=True))
+        self.guide_now = label("", wrap=True, select=True)
+        lay.addWidget(self.guide_now)
+        row = QHBoxLayout()
+        self.guide_pick = QComboBox()
+        self.guide_pick.currentIndexChanged.connect(self._show_guide_option)
+        row.addWidget(self.guide_pick, 1)
+        self.guide_copy = QPushButton("Copy commands")
+        self.guide_copy.clicked.connect(self._copy_guide)
+        row.addWidget(self.guide_copy)
+        lay.addLayout(row)
+        self.guide_about = label("", wrap=True, select=True)
+        lay.addWidget(self.guide_about)
+        self.guide_cmds = QPlainTextEdit()
+        self.guide_cmds.setObjectName("console")
+        self.guide_cmds.setReadOnly(True)
+        self.guide_cmds.setMinimumHeight(300)
+        lay.addWidget(self.guide_cmds)
+        self.guide_notes = label("", wrap=True, muted=True)
+        lay.addWidget(self.guide_notes)
+        self.guide = None
         lay.addStretch()
         return self._scroll(inner)
+
+    def _update_guide(self, info):
+        try:
+            from languard_core import dnsguide
+            g = dnsguide.guide(info=info)
+        except Exception as e:
+            self.guide_now.setText(f"DNS guide unavailable: {e}")
+            return None
+        self.guide = g
+        cur = g["current"]
+        color = {"encrypted": COLORS["ok"], "plain": COLORS["WARNING"]}.get(
+            cur["state"], COLORS["WARNING"])
+        self.guide_now.setText(f"<b style='color:{color}'>Now:</b> {cur['text']}")
+        keep = self.guide_pick.currentData()
+        self.guide_pick.blockSignals(True)
+        self.guide_pick.clear()
+        for o in g["options"]:
+            rec = o["key"] == cur.get("recommend")
+            self.guide_pick.addItem(f"{o['title']}  ({o['protocol']})"
+                                    + ("  - recommended" if rec else "")
+                                    + ("" if o.get("available", True) else
+                                       "  - not packaged here"), o["key"])
+        keys = [o["key"] for o in g["options"]]
+        want = keep if keep in keys else (cur.get("recommend") or keys[0])
+        self.guide_pick.setCurrentIndex(keys.index(want))
+        self.guide_pick.blockSignals(False)
+        self._show_guide_option()
+        self.guide_notes.setText("".join(f"<p>• {n}</p>" for n in g["notes"]))
+        return cur
+
+    def _show_guide_option(self, *_):
+        if not self.guide:
+            return
+        from languard_core import dnsguide
+        key = self.guide_pick.currentData()
+        o = next((o for o in self.guide["options"] if o["key"] == key), None)
+        if not o:
+            return
+        self.guide_about.setText(
+            f"{o['summary']}<br><span style='color:{COLORS['ok']}'>+</span> {o['pros']}"
+            f"<br><span style='color:{COLORS['WARNING']}'>−</span> {o['cons']}"
+            f"<br><span style='color:{COLORS['muted']}'>Commands for "
+            f"{self.guide['distribution']}</span>")
+        self.guide_cmds.setPlainText(dnsguide.commands_text(o))
+
+    def _copy_guide(self):
+        QApplication.clipboard().setText(self.guide_cmds.toPlainText())
+        self.statusBar().showMessage("Commands copied. LANGuard didn't run them.", 5000)
 
     # ---- tools ----
     def _tools_page(self):
@@ -1817,19 +1891,31 @@ class MainWindow(QMainWindow):
         svc = (self.status or {}).get("local_dns") or {}
         if not info.get("resolver") and svc.get("resolver"):
             info.update({k: v for k, v in svc.items() if v})
+            if info.get("leak_risk") and not info.get("advice"):
+                from languard_core import localdns
+                info["advice"] = localdns.advice(info)
         self.dns_info = info
         risk = info.get("leak_risk") or []
         if info.get("resolver"):
+            self._update_guide(info)
             color = COLORS["WARNING"] if risk else COLORS["ok"]
             self.dns_title.setText(f"{info.get('label') or info['resolver']} is running")
             self.dns_sub.setText("Your DNS lookups are encrypted before they leave this "
                                  "computer." if not risk else
                                  "Encrypted resolver found, but some lookups may bypass it.")
         else:
-            color = COLORS["INFO"]
-            self.dns_title.setText("No local encrypted resolver")
-            self.dns_sub.setText("DNS goes out in plain text; LANGuard watches the answers "
-                                 "for spoofing. You can install dnscrypt-proxy yourself.")
+            cur = self._update_guide(info) or {}
+            if cur.get("label"):
+                color = COLORS["ok"] if cur["state"] == "encrypted" else COLORS["WARNING"]
+                self.dns_title.setText(f"{cur['label']} is on")
+                self.dns_sub.setText("Your DNS lookups are encrypted by systemd-resolved."
+                                     if cur["state"] == "encrypted" else cur["text"])
+            else:
+                color = COLORS["INFO"]
+                self.dns_title.setText("No local encrypted resolver")
+                self.dns_sub.setText("DNS goes out in plain text; LANGuard watches the "
+                                     "answers for spoofing. See \"Set up encrypted DNS "
+                                     "yourself\" below.")
         self.dns_title.setStyleSheet(f"color: {color};")
         self.dns_icon.setPixmap(nav_icon("dns", color, 64).pixmap(48, 48))
         f = self.dns_fields
