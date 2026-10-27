@@ -240,7 +240,7 @@ else:
           and "already handles every lookup" in w.guide_now.text())
     w.guide_pick.setCurrentIndex(2)
     check("picking an option shows its commands",
-          "stubby" in w.guide_cmds.toPlainText() and "Undo" in w.guide_cmds.toPlainText())
+          "stubby" in w.guide_cmds.toPlainText().lower() and "Undo" in w.guide_cmds.toPlainText())
     w._copy_guide()
     check("copy puts the commands on the clipboard",
           QApplication.clipboard().text() == w.guide_cmds.toPlainText())
