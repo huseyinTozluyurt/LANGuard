@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=LANGuard
+Comment=LAN attack protection: status, threats and actions
+Exec=languard-gui
+Icon=security-high
+Terminal=false
+Categories=System;Security;Network;
+Keywords=security;network;arp;mitm;firewall;

@@ -1,0 +1,46 @@
+[Unit]
+Description=LANGuard LAN attack monitor and real-time anti-malware
+# ClamAV's daemon is clamav-daemon (Debian, Ubuntu, Arch), clamd@scan (Fedora,
+# RHEL) or clamd (openSUSE); ordering after units that don't exist is harmless.
+After=network-online.target clamav-daemon.service clamd@scan.service clamd.service
+Wants=network-online.target
+# Never give up restarting.
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/local/bin/languard monitor
+# The HTTPS guard's redirect must never outlive its proxy.
+ExecStopPost=-/usr/sbin/nft delete table inet languard_guard
+# Restart on crash, on clean exit, and when the watchdog sees a hang.
+Restart=always
+RestartSec=5
+WatchdogSec=90
+# Don't let the out-of-memory killer pick the security monitor first.
+OOMScoreAdjust=-500
+# Runs as root: packet capture, quarantine and optional UFW blocking need it.
+# No PrivateTmp: the file watcher must see the real /tmp.
+ProtectSystem=full
+ReadWritePaths=-/var/log -/var/lib/languard -/etc/ufw
+# Sandboxing that costs nothing: a bug in a packet parser can't load kernel
+# modules, gain privileges through setuid programs, change the clock or the
+# kernel log, or open sockets of kinds LANGuard never uses.
+NoNewPrivileges=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+# Live status for the desktop app (world-readable, nothing secret).
+RuntimeDirectory=languard
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+
+[Install]
+WantedBy=multi-user.target

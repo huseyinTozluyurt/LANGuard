@@ -1,0 +1,9 @@
+# Working on LANGuard: everything to run the test suite and the linters.
+#   python3 -m venv --system-site-packages .venv
+#   .venv/bin/pip install -r requirements-dev.txt
+#   tests/run_all.sh .venv/bin/python
+# (--system-site-packages lets the venv reuse a distribution's scapy/PyQt5.)
+-r requirements.txt
+-r requirements-gui.txt
+pyflakes>=3.0
+shellcheck-py>=0.9

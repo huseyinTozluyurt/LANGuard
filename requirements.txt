@@ -1,0 +1,12 @@
+# Python libraries LANGuard needs at runtime (the service and the CLI).
+#
+# You normally don't install these with pip: install.sh takes them from your
+# distribution (python3-scapy, python-scapy...), which keeps them updated with
+# the rest of the system. pip is the fallback, used automatically when the
+# distribution doesn't ship them for your Python, or on request with
+# `sudo ./install.sh --pip`; they then go into /opt/languard/vendor, never
+# into the system's site-packages.
+#
+# Non-Python requirements can't come from pip: nftables, iproute2, ClamAV,
+# polkit and notify-send. See "Dependencies" in README.md.
+scapy>=2.4.3

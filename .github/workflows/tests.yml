@@ -1,0 +1,71 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  distro:
+    name: ${{ matrix.image }} ${{ matrix.opts }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ubuntu:20.04
+          - ubuntu:22.04
+          - ubuntu:24.04
+          - debian:12
+          - debian:13
+          - fedora:41
+          - fedora:42
+          - almalinux:9
+          - opensuse/tumbleweed
+          - opensuse/leap:15.6
+          - archlinux:latest
+        opts: ["--no-av"]
+        include:
+          # Python libraries from PyPI (requirements*.txt) instead of distro packages.
+          - image: ubuntu:24.04
+            opts: --no-av --pip
+          - image: debian:12
+            opts: --no-av --pip
+          - image: fedora:42
+            opts: --no-av --pip
+    container:
+      image: ${{ matrix.image }}
+      # nftables and network namespaces for the end-to-end tests.
+      options: --privileged
+    steps:
+      - name: Tools the checkout needs
+        run: |
+          if command -v apt-get >/dev/null; then apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git ca-certificates
+          elif command -v dnf >/dev/null; then dnf install -y -q git tar
+          elif command -v zypper >/dev/null; then zypper -n -q install git tar gzip
+          elif command -v pacman >/dev/null; then pacman -Syu --noconfirm --needed git
+          fi
+      - name: AlmaLinux - EPEL (ClamAV, PyQt5, scapy live there)
+        if: startsWith(matrix.image, 'almalinux')
+        run: dnf install -y -q epel-release
+      - uses: actions/checkout@v4
+      - name: Install, CLI, selftest, test suite, uninstall
+        run: bash scripts/ci-container-test.sh ${{ matrix.opts }}
+
+  dev-venv:
+    # The developer route from the README: a venv with requirements-dev.txt.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.8", "3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libgl1 libegl1 libxkbcommon-x11-0 libfontconfig1 nftables
+      - run: python -m venv .venv && .venv/bin/pip install -q -r requirements-dev.txt
+      - run: .venv/bin/python -m pyflakes languard.py languard_gui.py languard_strict.py languard_core tests
+      - run: .venv/bin/shellcheck -S warning install.sh uninstall.sh tests/run_all.sh scripts/*.sh
+      - run: tests/run_all.sh .venv/bin/python

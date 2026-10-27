@@ -1,0 +1,10 @@
+[Unit]
+Description=LANGuard weekly full virus scan of home folders
+After=clamav-daemon.service clamd@scan.service clamd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/languard avscan
+# Stay out of the way while you work.
+Nice=19
+IOSchedulingClass=idle

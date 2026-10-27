@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.backup-*/
+*.tar.gz
+*.tar.xz
+*.tgz
+*.pcap
+/screens/
+.idea/
+.vscode/

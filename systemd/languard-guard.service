@@ -1,0 +1,6 @@
+[Unit]
+Description=LANGuard guard: restart protection if it was stopped
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/languard guard

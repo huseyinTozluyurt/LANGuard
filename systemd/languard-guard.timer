@@ -1,0 +1,10 @@
+[Unit]
+Description=Check every 5 minutes that LANGuard and ClamAV are running
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

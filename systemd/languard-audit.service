@@ -1,0 +1,6 @@
+[Unit]
+Description=LANGuard host hardening audit
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '/usr/local/bin/languard audit --json > /var/log/languard-audit.json'

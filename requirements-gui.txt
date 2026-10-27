@@ -1,0 +1,6 @@
+# The desktop app (languard-gui). Same strategy as requirements.txt: the
+# distribution's PyQt5 first (python3-pyqt5, python3-qt5, python-pyqt5), pip
+# into /opt/languard/vendor as the fallback. PyQt5 wheels bundle Qt itself but
+# still need the system's OpenGL, xkbcommon and fontconfig libraries, which
+# install.sh adds when it falls back to pip.
+PyQt5>=5.12

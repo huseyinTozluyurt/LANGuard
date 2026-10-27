@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Lets the LANGuard desktop app run `languard` as root after one password
+     prompt, remembered for a few minutes (auth_admin_keep). Commands that
+     lower protection only run through languard_strict.py, which asks for the
+     password every time, so malware can't reuse a remembered one. -->
+<policyconfig>
+  <vendor>LANGuard</vendor>
+  <action id="org.languard.manage">
+    <description>Control LANGuard network protection</description>
+    <message>Authentication is required to change LANGuard protection</message>
+    <icon_name>security-high</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/opt/languard/languard.py</annotate>
+  </action>
+  <action id="org.languard.weaken">
+    <description>Lower LANGuard network protection</description>
+    <message>Authentication is required to pause or weaken LANGuard protection</message>
+    <icon_name>security-low</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/opt/languard/languard_strict.py</annotate>
+  </action>
+</policyconfig>
