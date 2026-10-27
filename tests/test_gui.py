@@ -122,7 +122,7 @@ check("--set switches single responses and keeps enabled",
 print("== Desktop window (offscreen)")
 try:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PyQt5.QtWidgets import QApplication
+    from PyQt5.QtWidgets import QApplication, QScrollArea
 except ImportError:
     print("  (python3-pyqt5 not installed: skipped)")
 else:
@@ -235,6 +235,27 @@ else:
     check("DNS page shows the resolver read-only",
           "dnscrypt-proxy" in w.dns_title.text() and w.dns_advice.isHidden()
           and "127.0.0.1:53" in w.dns_fields["listen"].text())
+    check("DNS guide: 5 options with commands, read-only",
+          w.guide_pick.count() == 5 and "# Step 1:" in w.guide_cmds.toPlainText()
+          and "already handles every lookup" in w.guide_now.text())
+    w.guide_pick.setCurrentIndex(2)
+    check("picking an option shows its commands",
+          "stubby" in w.guide_cmds.toPlainText() and "Undo" in w.guide_cmds.toPlainText())
+    w._copy_guide()
+    check("copy puts the commands on the clipboard",
+          QApplication.clipboard().text() == w.guide_cmds.toPlainText())
+    n = len(ran)
+    with_resolver = w.b.local_dns
+    w.b.local_dns = lambda: {"resolver": None, "listen": [], "leak_risk": []}
+    saved, w.status = w.status, dict(w.status or {}, local_dns={})
+    w._update_dns(force=True)
+    w.status = saved
+    check("no resolver: points to the guide, marks a recommendation, keeps your "
+          "pick, runs nothing",
+          "No local encrypted resolver" in w.dns_title.text()
+          and any("recommended" in w.guide_pick.itemText(i) for i in range(5))
+          and w.guide_pick.currentData() == "stubby" and len(ran) == n)
+    w.b.local_dns = with_resolver
     audit = json.dumps([{"status": "FAIL", "check": "Firewall", "detail": "off", "fix": "ufw"},
                         {"status": "PASS", "check": "SMB", "detail": "ok", "fix": None}])
     w.b.plain = lambda *a: ran.append(list(a)) or [sys.executable, "-c", f"print({audit!r})"]
@@ -318,6 +339,16 @@ else:
             w.go(i)
             app.processEvents()
             w.grab().save(str(out / f"{i + 1}-{key}.png"))
+        w.b.local_dns = lambda: {"resolver": None, "listen": [], "leak_risk": [],
+                                 "resolv_conf": ["127.0.0.53"]}
+        w.status = dict(w.status or {}, local_dns={})
+        w.go(5)
+        w.guide_pick.setCurrentIndex(1)
+        app.processEvents()
+        sa = w.pages.currentWidget().findChild(QScrollArea)
+        sa.ensureWidgetVisible(w.guide_cmds)
+        app.processEvents()
+        w.grab().save(str(out / "8-dns-guide.png"))
 
 print(f"\n{'ALL PASSED' if not fails else f'{fails} FAILED'}")
 sys.exit(fails)

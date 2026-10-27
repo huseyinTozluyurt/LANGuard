@@ -47,6 +47,7 @@ check "languard status" /usr/local/bin/languard status
 # it only has to run.
 check "languard audit runs" sh -c '/usr/local/bin/languard audit; [ $? -lt 100 ]'
 check "languard selftest" /usr/local/bin/languard selftest
+check "languard dnsguide" sh -c '/usr/local/bin/languard dnsguide >/dev/null'
 check "scapy importable by LANGuard" "$PY" -c \
   'import sys; sys.path[:0]=["/opt/languard", "/opt/languard/vendor"]; import scapy.all'
 # The desktop app, when PyQt5 is there: start it offscreen and make sure it
@@ -56,6 +57,28 @@ if "$PY" -c 'import sys; sys.path.append("/opt/languard/vendor"); import PyQt5.Q
     'QT_QPA_PLATFORM=offscreen timeout 8 /usr/local/bin/languard-gui >/tmp/gui.log 2>&1; [ $? -eq 124 ] || { cat /tmp/gui.log; false; }'
 else
   echo "-------- SKIP: desktop app (PyQt5 not available)"
+fi
+
+# The DNS guide tells people to install these: they must exist here.
+pkg_exists() {
+  if command -v apt-cache >/dev/null; then apt-cache show "$1" >/dev/null 2>&1
+  elif command -v dnf >/dev/null; then dnf -q info "$1" >/dev/null 2>&1
+  elif command -v zypper >/dev/null; then zypper -n -q search -x "$1" >/dev/null 2>&1
+  elif command -v pacman >/dev/null; then pacman -Si "$1" >/dev/null 2>&1
+  else return 1; fi
+}
+step "DNS guide packages"
+if pkg_exists bash; then
+  for p in $(/usr/local/bin/languard dnsguide --packages); do
+    check "package $p exists" pkg_exists "$p"
+  done
+  if command -v zypper >/dev/null; then
+    for p in systemd-resolved systemd-network; do
+      pkg_exists "$p" && echo "INFO: $p available" || echo "INFO: no $p"
+    done
+  fi
+else
+  echo "-------- SKIP: DNS guide packages (no package index, offline)"
 fi
 
 step "Test suite"

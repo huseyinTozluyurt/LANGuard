@@ -21,6 +21,9 @@ LANGuard - LAN attack monitor and real-time anti-malware for Linux.
   languard network [--home|--public|--unmark]
                                    tell LANGuard what this network is
   languard dnscheck                your encrypted DNS (dnscrypt-proxy), read-only
+  languard dnsguide [--option X]   how to set up encrypted DNS yourself
+                                   (dnscrypt-proxy, DNS over TLS, ...): shows
+                                   the commands, never runs them
   languard hsts [--update]         the HSTS preload list
   languard evidence                packet captures saved on critical alerts
   languard selftest [--netns]      simulated attacks + environment checks
@@ -419,6 +422,16 @@ def main():
                       "ignored from the start")
     kind.add_argument("--unmark", action="store_true")
     sub.add_parser("dnscheck", help="your encrypted DNS resolver (read-only)")
+    dg = sub.add_parser("dnsguide", help="how to set up encrypted DNS yourself "
+                        "(prints commands, never runs them)")
+    dg.add_argument("--option", choices=("resolved-dot", "dnscrypt-proxy",
+                                         "stubby", "unbound", "browser-doh"),
+                    help="show only this option")
+    dg.add_argument("--distro", choices=("debian", "fedora", "suse", "arch"),
+                    help="commands for another distribution family")
+    dg.add_argument("--json", action="store_true")
+    dg.add_argument("--packages", action="store_true",
+                    help="package names the guide installs (for tests)")
     hp = sub.add_parser("hsts", help="the HSTS preload list")
     hp.add_argument("--update", action="store_true", help="download it now")
     sub.add_parser("evidence", help="list packet captures of critical alerts")
@@ -452,6 +465,12 @@ def main():
         print(json.dumps({k: v for k, v in info.items() if k != "checked"},
                          indent=2))
         audit.print_report(audit.check_local_dns(info))
+        if not info.get("resolver"):
+            print("\nTo encrypt your DNS yourself: languard dnsguide")
+        return
+    if args.cmd == "dnsguide":
+        from languard_core import dnsguide
+        dnsguide.main(args)
         return
     if args.cmd == "selftest":
         from languard_core import selftest
