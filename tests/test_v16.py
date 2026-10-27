@@ -238,6 +238,13 @@ def localdns_tests():
     check("all through dnscrypt: PASS", audit.check_local_dns(good)[0].status == "PASS")
     check("no resolver: INFO only (your DNS choice)",
           audit.check_local_dns({"resolver": None})[0].status == "INFO")
+    import contextlib
+    import io
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        audit.print_report(audit.check_local_dns({"resolver": None}))
+    check("only INFO results: no 0/100 score",
+          "nothing to score" in out.getvalue() and "/100" not in out.getvalue())
 
 
 # ------------------------------------------------------------------ HSTS --

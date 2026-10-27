@@ -1,6 +1,7 @@
 # LANGuard 1.7
 
 [![Tests](https://github.com/huseyinTozluyurt/LANGuard/actions/workflows/tests.yml/badge.svg)](https://github.com/huseyinTozluyurt/LANGuard/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 LAN attack monitor, intrusion prevention and real-time anti-malware for Linux
 desktops and laptops on weak or untrusted networks (home Wi-Fi, shared offices,
@@ -620,3 +621,8 @@ Ubuntu, Debian, Fedora, AlmaLinux, openSUSE and Arch
 ```bash
 sudo ./uninstall.sh          # --purge also removes config, state, logs and hardening files
 ```
+
+## License
+
+LANGuard is released under the [MIT License](LICENSE).
+Copyright (c) 2026 Hüseyin Tozluyurt.

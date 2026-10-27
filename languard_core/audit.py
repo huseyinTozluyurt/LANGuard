@@ -596,9 +596,11 @@ def print_report(results):
         if r.fix and r.status != PASS:
             print(f"        fix: {r.fix}")
     counts = {s: sum(r.status == s for r in results) for s in (PASS, WARN, FAIL)}
-    score = round(100 * counts[PASS] / max(1, sum(counts.values())))
+    graded = sum(counts.values())
+    score = f"score {round(100 * counts[PASS] / graded)}/100" if graded \
+        else "nothing to score"
     print(f"\n{counts[PASS]} passed, {counts[WARN]} warnings, "
-          f"{counts[FAIL]} failed  (score {score}/100)")
+          f"{counts[FAIL]} failed  ({score})")
     return counts
 
 
