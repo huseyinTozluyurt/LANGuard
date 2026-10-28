@@ -37,6 +37,8 @@ check "install" ./install.sh "${OPTS[@]}"
 check "files in /opt/languard" test -x /opt/languard/languard.py
 check "languard on PATH" test -L /usr/local/bin/languard
 check "polkit policy installed" test -f /usr/share/polkit-1/actions/org.languard.policy
+check "one launcher, with its icon" sh -c \
+  '[ "$(grep -rl "^Exec=languard-gui" /usr/share/applications | wc -l)" -eq 1 ] && test -f /usr/share/icons/hicolor/scalable/apps/languard.svg'
 
 PY="$(head -1 /opt/languard/languard.py | sed 's/^#!//; s|^/usr/bin/env ||')"
 step "CLI (interpreter: $PY)"
@@ -86,6 +88,7 @@ step "uninstall.sh --purge"
 check "uninstall" ./uninstall.sh --purge
 check "nothing left in /opt" test ! -e /opt/languard
 check "no command left" test ! -e /usr/local/bin/languard
+check "no launcher left" test ! -e /usr/share/applications/languard.desktop
 
 echo
 if [ -z "$FAILED" ]; then
