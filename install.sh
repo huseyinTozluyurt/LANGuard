@@ -28,6 +28,16 @@ for a in "$@"; do
 done
 [ "$DRY" -eq 1 ] || [ "$(id -u)" -eq 0 ] || { echo "Run as root: sudo ./install.sh"; exit 1; }
 run() { if [ "$DRY" -eq 1 ]; then echo "    would run: $*"; else "$@"; fi; }
+# Application menus and icon themes cache what's installed; not every
+# distribution ships these tools, and menus also notice changes on their own.
+refresh_menus() {
+  if command -v update-desktop-database >/dev/null; then
+    run update-desktop-database -q /usr/share/applications || true
+  fi
+  if command -v gtk-update-icon-cache >/dev/null && [ -f /usr/share/icons/hicolor/index.theme ]; then
+    run gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+  fi
+}
 
 # ------------------------------------------------------------ distribution --
 ID=""; ID_LIKE=""; PRETTY_NAME="Linux"
@@ -281,8 +291,22 @@ run mkdir -p /usr/share/polkit-1/actions
 run install -m 644 "$SRC/desktop/org.languard.policy" /usr/share/polkit-1/actions/
 if [ "$GUI" -eq 1 ]; then
   run ln -sf "$DEST/languard_gui.py" /usr/local/bin/languard-gui
-  run mkdir -p /usr/share/applications
+  # One launcher, under one fixed desktop file ID: drop copies left by older
+  # installs or made by hand, which show up as extra LANGuard entries.
+  WHO_HOME=""
+  [ -n "${SUDO_USER:-}" ] && WHO_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+  for f in /usr/share/applications/*.desktop /usr/local/share/applications/*.desktop \
+           ${WHO_HOME:+"$WHO_HOME"/.local/share/applications/*.desktop}; do
+    [ -f "$f" ] && [ "$f" != /usr/share/applications/languard.desktop ] || continue
+    if grep -Eq '^Exec=.*(languard-gui|languard_gui\.py)' "$f"; then
+      echo "    removing old launcher $f"
+      run rm -f "$f"
+    fi
+  done
+  run mkdir -p /usr/share/applications /usr/share/icons/hicolor/scalable/apps
   run install -m 644 "$SRC/desktop/languard.desktop" /usr/share/applications/
+  run install -m 644 "$SRC/desktop/languard.svg" /usr/share/icons/hicolor/scalable/apps/
+  refresh_menus
   if [ "$HAVE_QT" -eq 1 ] || [ "$DRY" -eq 1 ]; then
     echo "    desktop app: 'LANGuard' in your applications menu (or run languard-gui)"
   else

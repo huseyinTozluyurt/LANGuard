@@ -37,6 +37,7 @@ if _VENDOR.is_dir():
 
 from PyQt5.QtCore import (QPointF, QProcess, QRectF, QSize, Qt,  # noqa: E402
                           QTimer, pyqtSignal)
+from PyQt5.QtNetwork import QLocalServer, QLocalSocket  # noqa: E402
 from PyQt5.QtGui import (QBrush, QColor, QFont, QIcon, QPainter,  # noqa: E402
                          QPainterPath, QPen, QPixmap, QRadialGradient)
 from PyQt5.QtWidgets import (QAbstractItemView, QApplication,  # noqa: E402
@@ -56,6 +57,10 @@ LANGUARD = os.environ.get("LANGUARD_BIN", "/opt/languard/languard.py")
 # your password every time, so malware can't reuse one you typed earlier.
 LANGUARD_STRICT = str(Path(LANGUARD).with_name("languard_strict.py"))
 MAX_EVENTS = 20000
+# The launcher's desktop file ID (desktop/languard.desktop). Desktops match
+# windows to their launcher by it; without it each window shows up as its own
+# nameless app with a generic icon.
+DESKTOP_ID = "languard"
 MAC_RE = re.compile(r"^([0-9a-f]{2}:){5}[0-9a-f]{2}$")
 
 COLORS = {
@@ -2154,10 +2159,49 @@ QToolTip {{ background: {COLORS['panel2']}; color: {COLORS['text']}; border: 1px
 """
 
 
+def instance_name():
+    """Per-user name of the socket the running app listens on."""
+    return f"languard-gui-{os.getuid()}"
+
+
+def raise_running():
+    """Ask an already running app to show its window. True if one answered."""
+    s = QLocalSocket()
+    s.connectToServer(instance_name())
+    if not s.waitForConnected(500):
+        return False
+    s.write(b"show\n")
+    s.waitForBytesWritten(500)
+    s.disconnectFromServer()
+    return True
+
+
+def listen_for_launches(window):
+    """Later launches (menu, terminal) show this window instead of starting a
+    second app, which would sit in the tray and pile up in the launcher."""
+    server = QLocalServer(window)
+    if not server.listen(instance_name()):
+        # A socket left behind by an app that crashed: nobody answered on it.
+        QLocalServer.removeServer(instance_name())
+        server.listen(instance_name())
+
+    def accept():
+        while server.hasPendingConnections():
+            c = server.nextPendingConnection()
+            c.disconnected.connect(c.deleteLater)
+            window.show_normal()
+    server.newConnection.connect(accept)
+    return server
+
+
 def main():
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     app = QApplication(sys.argv)
     app.setApplicationName("LANGuard")
+    # Wayland app_id; on X11 WM_CLASS "LANGuard" matches StartupWMClass.
+    app.setDesktopFileName(DESKTOP_ID)
+    if raise_running():
+        sys.exit(0)
     app.setStyle("Fusion")
     app.setStyleSheet(STYLE)
     f = QFont()
@@ -2166,6 +2210,7 @@ def main():
     app.setFont(f)
     app.setQuitOnLastWindowClosed(False)
     w = MainWindow(Backend())
+    w.server = listen_for_launches(w)
     w.show()
     if not w.tray:
         app.setQuitOnLastWindowClosed(True)

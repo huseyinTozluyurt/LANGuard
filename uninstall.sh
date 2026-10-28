@@ -19,7 +19,12 @@ rm -f /usr/local/bin/languard /usr/local/bin/languard-gui
 if [ "$(readlink /usr/bin/languard 2>/dev/null || true)" = /opt/languard/languard.py ]; then
   rm -f /usr/bin/languard
 fi
-rm -f /usr/share/polkit-1/actions/org.languard.policy /usr/share/applications/languard.desktop
+rm -f /usr/share/polkit-1/actions/org.languard.policy /usr/share/applications/languard.desktop \
+  /usr/share/icons/hicolor/scalable/apps/languard.svg
+command -v update-desktop-database >/dev/null && { update-desktop-database -q /usr/share/applications || true; }
+if command -v gtk-update-icon-cache >/dev/null && [ -f /usr/share/icons/hicolor/index.theme ]; then
+  gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+fi
 rm -rf /run/languard
 rm -rf /opt/languard
 

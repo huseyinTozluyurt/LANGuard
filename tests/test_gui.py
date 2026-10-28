@@ -119,6 +119,17 @@ d = json.loads(cfgp.read_text())["protect"]
 check("--set switches single responses and keeps enabled",
       d == {"enabled": False, "https_guard": False, "kill_switch": True})
 
+print("== Launcher")
+entry = dict(line.split("=", 1) for line in
+             (ROOT / "desktop/languard.desktop").read_text().splitlines() if "=" in line)
+check("launcher uses the shipped icon", entry["Icon"] == "languard"
+      and (ROOT / "desktop/languard.svg").is_file())
+# Matches the app's WM_CLASS (X11) and desktop file name (Wayland app_id), so
+# windows group under the launcher instead of appearing as extra apps.
+check("launcher matches the app's windows", entry["StartupWMClass"] == "LANGuard"
+      and "app.setDesktopFileName(DESKTOP_ID)" in (ROOT / "languard_gui.py").read_text()
+      and 'DESKTOP_ID = "languard"' in (ROOT / "languard_gui.py").read_text())
+
 print("== Desktop window (offscreen)")
 try:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -163,6 +174,22 @@ else:
     w.proc.waitForFinished(5000)
     app.processEvents()
     check("privileged command runs and finishes", w.proc is None)
+
+    print("== One app per user")
+    # A separate socket name, so a LANGuard app you have open isn't touched.
+    g.instance_name = lambda: f"languard-gui-test-{os.getpid()}"
+    check("first launch finds nothing running", not g.raise_running())
+    w.hide()
+    w.server = g.listen_for_launches(w)
+    check("second launch reaches the running app", g.raise_running())
+    for _ in range(50):
+        app.processEvents()
+        if w.isVisible():
+            break
+        time.sleep(0.02)
+    check("running app shows its window", w.isVisible())
+    w.server.close()
+    check("nothing listening after close", not g.raise_running())
 
     print("== New pages")
 
